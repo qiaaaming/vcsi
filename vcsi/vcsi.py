@@ -583,46 +583,31 @@ class MediaCapture(object):
     def compute_avg_color(self, image_path):
         """Computes the average color of an image
         """
-        i = Image.open(image_path)
-        i = i.convert('P')
-        p = i.getcolors()
-
-        # compute avg color
-        total_count = 0
-        avg_color = 0
-        for count, color in p:
-            total_count += count
-            avg_color += count * color
-
-        avg_color /= total_count
-
-        return avg_color
+        i = Image.open(image_path).convert("RGB")
+        i = i.resize((1, 1), Image.Resampling.BILINEAR)
+        r, g, b = i.getpixel((0, 0))
+        return (r + g + b) / 3.0
 
     def compute_blurriness(self, image_path):
         """Computes the blurriness of an image. Small value means less blurry.
         """
-        i = Image.open(image_path)
-        i = i.convert('L')  # convert to grayscale
-
-        a = numpy.asarray(i)
-        b = abs(numpy.fft.rfft2(a))
+        i = Image.open(image_path).convert('L')
+        i = i.resize((320, 180), Image.Resampling.BILINEAR)
+        a = numpy.asarray(i, dtype=numpy.float32)
+        b = numpy.abs(numpy.fft.rfft2(a))
         max_freq = self.avg9x(b)
-
-        if max_freq != 0:
-            return 1 / max_freq
-        else:
-            return 1
+        return 1 / max_freq if max_freq != 0 else 1
 
     def avg9x(self, matrix, percentage=0.05):
         """Computes the median of the top n% highest values.
         By default, takes the top 5%
         """
-        xs = matrix.flatten()
-        srt = sorted(xs, reverse=True)
-        length = int(math.floor(percentage * len(srt)))
-
-        matrix_subset = srt[:length]
-        return numpy.median(matrix_subset)
+        xs = matrix.ravel()
+        k = int(xs.size * percentage)
+        if k <= 1:
+            return float(numpy.max(xs))
+        topk = numpy.partition(xs, xs.size - k)[-k:]
+        return float(numpy.median(topk))
 
     def max_freq(self, matrix):
         """Returns the maximum value in the matrix
